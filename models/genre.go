@@ -1,5 +1,6 @@
 package models
 
 type Genre struct {
-	// not implemented
+	Id    int
+	Title string
 }
