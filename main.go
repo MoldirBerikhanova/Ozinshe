@@ -32,7 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	moviesRepository := repositories.NewMoviesRepository()
+	moviesRepository := repositories.NewMoviesRepository(conn)
 	genresRepostiroy := repositories.NewGenresRepository(conn)
 	moviesHandler := handlers.NewMoviesHandler(
 		moviesRepository,

@@ -2,122 +2,257 @@ package repositories
 
 import (
 	"context"
-	"errors"
 	"goozinshe/models"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type MoviesRepository struct {
-	db map[int]models.Movie
+	db *pgxpool.Pool
 }
 
-func NewMoviesRepository() *MoviesRepository {
-	return &MoviesRepository{
-		db: map[int]models.Movie{
-			1: {
-				Id:          1,
-				Title:       "1+1",
-				Description: "Пострадав в результате несчастного случая, богатый аристократ Филипп нанимает в помощники человека, который менее всего подходит для этой работы, – молодого жителя предместья Дрисса, только что освободившегося из тюрьмы. Несмотря на то, что Филипп прикован к инвалидному креслу, Дриссу удается привнести в размеренную жизнь аристократа дух приключений.",
-				ReleaseYear: 2011,
-				Director:    "Оливье Накаш",
-				Rating:      0,
-				IsWatched:   false,
-				TrailerUrl:  "https://www.youtube.com/watch?v=m95M-I7Ij0o&ab_channel=%D0%9A%D0%B8%D0%BD%D0%BE%D0%92%D0%B8%D1%85%D1%80%D1%8C",
-				PosterUrl:   "",
-				Genres:      make([]models.Genre, 0),
-			},
-			2: {
-				Id:          2,
-				Title:       "Интерстеллар",
-				Description: "Когда засуха, пыльные бури и вымирание растений приводят человечество к продовольственному кризису, коллектив исследователей и учёных отправляется сквозь червоточину (которая предположительно соединяет области пространства-времени через большое расстояние) в путешествие, чтобы превзойти прежние ограничения для космических путешествий человека и найти планету с подходящими для человечества условиями.",
-				ReleaseYear: 2014,
-				Director:    "Кристофер Нолан",
-				Rating:      0,
-				IsWatched:   false,
-				TrailerUrl:  "https://www.youtube.com/watch?v=6ybBuTETr3U",
-				PosterUrl:   "",
-				Genres:      make([]models.Genre, 0),
-			},
-			3: {
-				Id:          3,
-				Title:       "Побег из Шоушенка",
-				Description: "Бухгалтер Энди Дюфрейн обвинён в убийстве собственной жены и её любовника. Оказавшись в тюрьме под названием Шоушенк, он сталкивается с жестокостью и беззаконием, царящими по обе стороны решётки. Каждый, кто попадает в эти стены, становится их рабом до конца жизни. Но Энди, обладающий живым умом и доброй душой, находит подход как к заключённым, так и к охранникам, добиваясь их особого к себе расположения.",
-				ReleaseYear: 1994,
-				Director:    "Фрэнк Дарабонт",
-				Rating:      0,
-				IsWatched:   false,
-				TrailerUrl:  "https://www.youtube.com/watch?v=kgAeKpAPOYk&ab_channel=%D0%A2%D1%80%D0%B5%D0%B9%D0%BB%D0%B5%D1%80%D1%8B%D0%BA%D1%84%D0%B8%D0%BB%D1%8C%D0%BC%D0%B0%D0%BC",
-				PosterUrl:   "",
-				Genres:      make([]models.Genre, 0),
-			},
-			4: {
-				Id:          4,
-				Title:       "Бойцовский клуб",
-				Description: "Сотрудник страховой компании страдает хронической бессонницей и отчаянно пытается вырваться из мучительно скучной жизни. Однажды в очередной командировке он встречает некоего Тайлера Дёрдена — харизматического торговца мылом с извращенной философией. Тайлер уверен, что самосовершенствование — удел слабых, а единственное, ради чего стоит жить, — саморазрушение. Проходит немного времени, и вот уже новые друзья лупят друг друга почем зря на стоянке перед баром, и очищающий мордобой доставляет им высшее блаженство. Приобщая других мужчин к простым радостям физической жестокости, они основывают тайный Бойцовский клуб, который начинает пользоваться невероятной популярностью.",
-				ReleaseYear: 1999,
-				Director:    "Дэвид Финчер",
-				Rating:      0,
-				IsWatched:   false,
-				TrailerUrl:  "https://www.youtube.com/watch?v=C7-7qQ61QHU&ab_channel=%D0%A2%D1%80%D0%B5%D0%B9%D0%BB%D0%B5%D1%80%D1%8B%D0%BA%D1%84%D0%B8%D0%BB%D1%8C%D0%BC%D0%B0%D0%BC",
-				PosterUrl:   "",
-				Genres:      make([]models.Genre, 0),
-			},
-			5: {
-				Id:          5,
-				Title:       "Остров проклятых",
-				Description: "Два американских судебных пристава отправляются на один из островов в штате Массачусетс, чтобы расследовать исчезновение пациентки клиники для умалишенных преступников. При проведении расследования им придется столкнуться с паутиной лжи, обрушившимся ураганом и смертельным бунтом обитателей клиники.",
-				ReleaseYear: 2009,
-				Director:    "Мартин Скорсезе",
-				Rating:      0,
-				IsWatched:   false,
-				TrailerUrl:  "https://www.youtube.com/watch?v=_l7R9Rz5URw&ab_channel=%D0%A2%D1%80%D0%B5%D0%B9%D0%BB%D0%B5%D1%80%D1%8B%D0%BA%D1%84%D0%B8%D0%BB%D1%8C%D0%BC%D0%B0%D0%BC",
-				PosterUrl:   "",
-				Genres:      make([]models.Genre, 0),
-			},
-		},
-	}
+func NewMoviesRepository(conn *pgxpool.Pool) *MoviesRepository {
+	return &MoviesRepository{db: conn}
 }
 
 func (r *MoviesRepository) FindById(c context.Context, id int) (models.Movie, error) {
-	movie, ok := r.db[id]
-	if !ok {
-		return models.Movie{}, errors.New("Movie not found")
+	sql :=
+		`
+select 
+m.id,
+m.title,
+m.description,
+m.release_year,
+m.director,
+m.rating,
+m.is_watched,
+m.trailer_url,
+g.id,
+g.title
+from movies m
+join movies_genres mg on mg.movie_id = m.id
+join genres g on mg.genre_id  = g.id
+where m.id = $1
+	`
+
+	rows, err := r.db.Query(c, sql, id)
+	defer rows.Close()
+	if err != nil {
+		return models.Movie{}, err
 	}
 
-	return movie, nil
-}
+	var movie *models.Movie
 
-func (r *MoviesRepository) FindAll(c context.Context) []models.Movie {
-	movies := make([]models.Movie, 0, len(r.db))
-	for _, v := range r.db {
-		movies = append(movies, v)
+	for rows.Next() {
+		var m models.Movie
+		var g models.Genre
+
+		err := rows.Scan(
+			&m.Id,
+			&m.Title,
+			&m.Description,
+			&m.ReleaseYear,
+			&m.Director,
+			&m.Rating,
+			&m.IsWatched,
+			&m.TrailerUrl,
+			&g.Id,
+			&g.Title,
+		)
+		if err != nil {
+			return models.Movie{}, err
+		}
+
+		if movie != nil {
+			m = *movie
+		}
+
+		m.Genres = append(m.Genres, g)
+		movie = &m
 	}
 
-	return movies
+	err = rows.Err()
+	if err != nil {
+		return models.Movie{}, err
+	}
+
+	return *movie, nil
 }
 
-func (r *MoviesRepository) Create(c context.Context, movie models.Movie) int {
-	id := len(r.db) + 1
-	movie.Id = id
+func (r *MoviesRepository) FindAll(c context.Context) ([]models.Movie, error) {
+	sql :=
+		`
+select 
+m.id,
+m.title,
+m.description,
+m.release_year,
+m.director,
+m.rating,
+m.is_watched,
+m.trailer_url,
+g.id,
+g.title
+from movies m
+join movies_genres mg on mg.movie_id = m.id
+join genres g on mg.genre_id  = g.id
+`
 
-	r.db[id] = movie
+	rows, err := r.db.Query(c, sql)
+	if err != nil {
+		return nil, err
+	}
 
-	return id
+	movies := make([]*models.Movie, 0)
+	moviesMap := make(map[int]*models.Movie)
+
+	for rows.Next() {
+		var m models.Movie
+		var g models.Genre
+
+		err := rows.Scan(
+			&m.Id,
+			&m.Title,
+			&m.Description,
+			&m.ReleaseYear,
+			&m.Director,
+			&m.Rating,
+			&m.IsWatched,
+			&m.TrailerUrl,
+			&g.Id,
+			&g.Title,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exists := moviesMap[m.Id]; !exists {
+			moviesMap[m.Id] = &m
+			movies = append(movies, &m)
+		}
+
+		moviesMap[m.Id].Genres = append(moviesMap[m.Id].Genres, g)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	concreteMovies := make([]models.Movie, 0, len(movies))
+	for _, v := range movies {
+		concreteMovies = append(concreteMovies, *v)
+	}
+
+	return concreteMovies, nil
 }
 
-func (r *MoviesRepository) Update(c context.Context, id int, updatedMovie models.Movie) {
-	originalMovie := r.db[id]
+func (r *MoviesRepository) Create(c context.Context, movie models.Movie) (int, error) {
+	var id int
 
-	originalMovie.Title = updatedMovie.Title
-	originalMovie.Description = updatedMovie.Description
-	originalMovie.ReleaseYear = updatedMovie.ReleaseYear
-	originalMovie.Director = updatedMovie.Director
-	originalMovie.TrailerUrl = updatedMovie.TrailerUrl
-	originalMovie.Genres = updatedMovie.Genres
-	// originalMovie.PosterUrl = updatedMovie.PosterUrl
+	tx, err := r.db.Begin(c)
+	if err != nil {
+		return 0, nil
+	}
 
-	r.db[id] = originalMovie
+	row := tx.QueryRow(c,
+		`
+insert into movies(title, description, release_year, director, trailer_url)
+values($1, $2, $3, $4, $5)
+returning id
+	`,
+		movie.Title,
+		movie.Description,
+		movie.ReleaseYear,
+		movie.Director,
+		movie.TrailerUrl)
+
+	err = row.Scan(&id)
+	if err != nil {
+		return 0, nil
+	}
+
+	for _, genre := range movie.Genres {
+		_, err = tx.Exec(c, "insert into movies_genres(movie_id, genre_id) values($1, $2)", id, genre.Id)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	err = tx.Commit(c)
+	if err != nil {
+		return 0, nil
+	}
+
+	return id, nil
 }
 
-func (r *MoviesRepository) Delete(c context.Context, id int) {
-	delete(r.db, id)
+func (r *MoviesRepository) Update(c context.Context, id int, updatedMovie models.Movie) error {
+	tx, err := r.db.Begin(c)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		c,
+		`
+update movies
+set 
+title = $1,
+description = $2,
+release_year = $3,
+director = $4,
+trailer_url = $5
+where id = $6
+	`,
+		updatedMovie.Title,
+		updatedMovie.Description,
+		updatedMovie.ReleaseYear,
+		updatedMovie.Director,
+		updatedMovie.TrailerUrl,
+		id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(c, "delete from movies_genres where movie_id = $1", id)
+	if err != nil {
+		return err
+	}
+	for _, genre := range updatedMovie.Genres {
+		_, err = tx.Exec(c, "insert into movies_genres(movie_id, genre_id) values($1, $2)", id, genre.Id)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = tx.Commit(c)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *MoviesRepository) Delete(c context.Context, id int) error {
+	tx, err := r.db.Begin(c)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(c, "delete from movies_genres where movie_id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(c, "delete from movies where id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(c)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

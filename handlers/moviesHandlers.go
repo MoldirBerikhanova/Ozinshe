@@ -59,7 +59,11 @@ func (h *MoviesHandler) FindById(c *gin.Context) {
 }
 
 func (h *MoviesHandler) FindAll(c *gin.Context) {
-	movies := h.moviesRepo.FindAll(c)
+	movies, err := h.moviesRepo.FindAll(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, movies)
 }
@@ -88,7 +92,11 @@ func (h *MoviesHandler) Create(c *gin.Context) {
 		Genres:      genres,
 	}
 
-	id := h.moviesRepo.Create(c, movie)
+	id, err := h.moviesRepo.Create(c, movie)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"id": id,
