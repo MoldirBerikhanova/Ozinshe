@@ -11,4 +11,7 @@ type Movie struct {
 	TrailerUrl  string
 	PosterUrl   string // not implemented
 	Genres      []Genre
+	Category    []Category
+	Ages        []Age
+	Roles       []Roles
 }
