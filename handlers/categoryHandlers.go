@@ -1,16 +1,30 @@
 package handlers
 
 import (
+	"fmt"
 	"goozinshe/models"
 	"goozinshe/repositories"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CategoryHandlers struct {
 	categoryRepo *repositories.CategoryRepository
+}
+
+type createCategoryRequest struct {
+	Title  string                `form:"title"`
+	Poster *multipart.FileHeader `form:"poster"`
+}
+
+type updateCategoryRequest struct {
+	Title  string                `form:"title"`
+	Poster *multipart.FileHeader `form:"poster"`
 }
 
 func NewCategoryHandlers(categoryRepo *repositories.CategoryRepository) *CategoryHandlers {
@@ -30,11 +44,27 @@ func NewCategoryHandlers(categoryRepo *repositories.CategoryRepository) *Categor
 // @Failure   	 500  {object} models.ApiError
 // @Router       /categories [post]
 func (h *CategoryHandlers) Create(c *gin.Context) {
-	var category models.Category
-	err := c.BindJSON(&category)
+	var request updateCategoryRequest
+	err := c.Bind(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, "Invalid request category")
 		return
+	}
+
+	if request.Poster == nil {
+		c.JSON(http.StatusBadRequest, "Poster file is required")
+		return
+	}
+
+	filename, err := h.saveCategoryPoster(c, request.Poster)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
+		return
+	}
+
+	category := models.Category{
+		Title:     request.Title,
+		PosterUrl: filename,
 	}
 
 	id, err := h.categoryRepo.Create(c, category)
@@ -65,12 +95,20 @@ func (h *CategoryHandlers) FindById(c *gin.Context) {
 		return
 	}
 
-	_, err = h.categoryRepo.FindById(c, id)
+	category, err := h.categoryRepo.FindById(c, id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.NewApiError(err.Error()))
 		return
 	}
+	c.JSON(http.StatusOK, category)
+}
 
+func (h *CategoryHandlers) saveCategoryPoster(c *gin.Context, poster *multipart.FileHeader) (string, error) {
+	filename := fmt.Sprintf("%s%s", uuid.NewString(), filepath.Ext(poster.Filename))
+	filepath := fmt.Sprintf("images/%s", filename)
+	err := c.SaveUploadedFile(poster, filepath)
+
+	return filename, err
 }
 
 // FindAll godoc
@@ -115,18 +153,25 @@ func (h *CategoryHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	var updatedCategory models.Category
-	err = c.BindJSON(&updatedCategory)
+	var request updateCategoryRequest
+	err = c.Bind(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 
-	err = h.categoryRepo.Update(c, id, updatedCategory)
+	filename, err := h.saveCategoryPoster(c, request.Poster)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.NewApiError(err.Error()))
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
 		return
 	}
+
+	category := models.Category{
+		Title:     request.Title,
+		PosterUrl: filename,
+	}
+
+	h.categoryRepo.Update(c, id, category)
 
 	c.Status(http.StatusOK)
 }

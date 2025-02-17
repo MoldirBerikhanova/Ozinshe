@@ -5,28 +5,33 @@ import (
 	"goozinshe/repositories"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UsersHandlers struct {
-	repo *repositories.UsersRepository
+	userRepo *repositories.UsersRepository
 }
 
-func NewUsersHandlers(repo *repositories.UsersRepository) *UsersHandlers {
-	return &UsersHandlers{repo: repo}
+func NewUsersHandlers(userRepo *repositories.UsersRepository) *UsersHandlers {
+	return &UsersHandlers{userRepo: userRepo}
 }
 
 type createUserRequest struct {
-	Name     string
-	Email    string
-	Password string
+	Name        string
+	Email       string
+	Password    string
+	PhoneNumber *int
+	Birthday    *time.Time
 }
 
 type updateUserRequest struct {
-	Name  string
-	Email string
+	Name        string
+	Email       string
+	PhoneNumber *int
+	Birthday    *time.Time
 }
 
 type changePasswordRequest struct {
@@ -34,9 +39,11 @@ type changePasswordRequest struct {
 }
 
 type userResponse struct {
-	Id    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Id          int        `json:"id"`
+	Name        string     `json:"name"`
+	Email       string     `json:"email"`
+	PhoneNumber *int       `json:"phonenumber"`
+	Birthday    *time.Time `json:"birthday"`
 }
 
 // FindById godoc
@@ -58,16 +65,18 @@ func (h *UsersHandlers) FindById(c *gin.Context) {
 		return
 	}
 
-	user, err := h.repo.FindById(c, id)
+	user, err := h.userRepo.FindById(c, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.NewApiError("User not found"))
 		return
 	}
 
 	r := userResponse{
-		Id:    user.Id,
-		Name:  user.Name,
-		Email: user.Email,
+		Id:          user.Id,
+		Name:        user.Name,
+		Email:       user.Email,
+		PhoneNumber: user.PhoneNumber,
+		Birthday:    user.Birthday,
 	}
 
 	c.JSON(http.StatusOK, r)
@@ -82,7 +91,7 @@ func (h *UsersHandlers) FindById(c *gin.Context) {
 // @Failure   	 500  {object} models.ApiError
 // @Router       /users [get]
 func (h *UsersHandlers) FindAll(c *gin.Context) {
-	users, err := h.repo.FindAll(c)
+	users, err := h.userRepo.FindAll(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewApiError("could not load users"))
 		return
@@ -91,9 +100,11 @@ func (h *UsersHandlers) FindAll(c *gin.Context) {
 	dtos := make([]userResponse, 0, len(users))
 	for _, u := range users {
 		r := userResponse{
-			Id:    u.Id,
-			Name:  u.Name,
-			Email: u.Email,
+			Id:          u.Id,
+			Name:        u.Name,
+			Email:       u.Email,
+			PhoneNumber: u.PhoneNumber,
+			Birthday:    u.Birthday,
 		}
 		dtos = append(dtos, r)
 	}
@@ -129,9 +140,11 @@ func (h *UsersHandlers) Create(c *gin.Context) {
 		Name:         request.Name,
 		Email:        request.Email,
 		PasswordHash: string(passwordHash),
+		PhoneNumber:  request.PhoneNumber,
+		Birthday:     request.Birthday,
 	}
 
-	id, err := h.repo.Create(c, user)
+	id, err := h.userRepo.Create(c, user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewApiError("could not create user"))
 		return
@@ -166,7 +179,7 @@ func (h *UsersHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.repo.FindById(c, id)
+	user, err := h.userRepo.FindById(c, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.NewApiError("User not found"))
 		return
@@ -174,8 +187,10 @@ func (h *UsersHandlers) Update(c *gin.Context) {
 
 	user.Name = request.Name
 	user.Email = request.Email
+	user.PhoneNumber = request.PhoneNumber
+	user.Birthday = request.Birthday
 
-	err = h.repo.Update(c, id, user)
+	err = h.userRepo.Update(c, id, user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
 		return
@@ -203,13 +218,13 @@ func (h *UsersHandlers) Delete(c *gin.Context) {
 		return
 	}
 
-	_, err = h.repo.FindById(c, id)
+	_, err = h.userRepo.FindById(c, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.NewApiError("User not found"))
 		return
 	}
 
-	err = h.repo.Delete(c, id)
+	err = h.userRepo.Delete(c, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
 		return
@@ -250,7 +265,7 @@ func (h *UsersHandlers) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	user, err := h.repo.FindById(c, id)
+	user, err := h.userRepo.FindById(c, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.NewApiError("User not found"))
 		return
@@ -258,7 +273,7 @@ func (h *UsersHandlers) ChangePassword(c *gin.Context) {
 
 	user.PasswordHash = string(passwordHash)
 
-	err = h.repo.Update(c, id, user)
+	err = h.userRepo.Update(c, id, user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
 		return

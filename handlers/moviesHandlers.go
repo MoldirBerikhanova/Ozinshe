@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"fmt"
 	"goozinshe/logger"
 	"goozinshe/models"
 	"goozinshe/repositories"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -16,31 +20,31 @@ type MoviesHandler struct {
 	genresRepo   *repositories.GenresRepository
 	categoryRepo *repositories.CategoryRepository
 	ageRepo      *repositories.AgeRepository
-	rolesRepo    *repositories.RolesRepository
 }
 
 type createMovieRequest struct {
-	Title       string
-	Description string
-	ReleaseYear int
-	Director    string
-	TrailerUrl  string
-	GenreIds    []int
-	CategoryIds []int
-	AgeIds      []int
-	RoleIds     []int
+	Title       string                `form:"title"`
+	Description string                `form:"description"`
+	ReleaseYear int                   `form:"releaseYear"`
+	Director    string                `form:"director"`
+	TrailerUrl  string                `form:"trailerUrl"`
+	PosterUrl   *multipart.FileHeader `form:"posterUrl"`
+	GenreIds    []int                 `form:"genreIds"`
+	CategoryIds []int                 `form:"categoryIds"`
+	AgeIds      []int                 `form:"ageIds"`
+	AllserieIds []int                 `form:"allserieIds"`
 }
 
 type updateMovieRequest struct {
-	Title       string
-	Description string
-	ReleaseYear int
-	Director    string
-	TrailerUrl  string
-	GenreIds    []int
-	CategoryIds []int
-	AgeIds      []int
-	RoleIds     []int
+	Title       string                `form:"title"`
+	Description string                `form:"description"`
+	ReleaseYear int                   `form:"releaseYear"`
+	Director    string                `form:"director"`
+	TrailerUrl  string                `form:"trailerUrl"`
+	PosterUrl   *multipart.FileHeader `form:"posterUrl"`
+	GenreIds    []int                 `form:"genreIds"`
+	CategoryIds []int                 `form:"categoryIds"`
+	AgeIds      []int                 `form:"ageIds"`
 }
 
 func NewMoviesHandler(
@@ -48,13 +52,12 @@ func NewMoviesHandler(
 	genreRepo *repositories.GenresRepository,
 	categoryRepo *repositories.CategoryRepository,
 	ageRepo *repositories.AgeRepository,
-	rolesRepo *repositories.RolesRepository) *MoviesHandler {
+) *MoviesHandler {
 	return &MoviesHandler{
 		moviesRepo:   moviesRepo,
 		genresRepo:   genreRepo,
 		categoryRepo: categoryRepo,
 		ageRepo:      ageRepo,
-		rolesRepo:    rolesRepo,
 	}
 }
 
@@ -94,7 +97,13 @@ func (h *MoviesHandler) FindById(c *gin.Context) {
 // @Failure      500  {object}  models.ApiError "Internal Server Error"
 // @Router       /movies [get]
 func (h *MoviesHandler) FindAll(c *gin.Context) {
-	movies, err := h.moviesRepo.FindAll(c)
+	filters := models.MovieFilters{
+		SearchTerm: c.Query("search"),
+		IsWatched:  c.Query("iswatched"),
+		GenreId:    c.Query("genreids"),
+		Sort:       c.Query("sort"),
+	}
+	movies, err := h.moviesRepo.FindAll(c, filters)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
 		return
@@ -123,7 +132,7 @@ func (h *MoviesHandler) FindAll(c *gin.Context) {
 func (h *MoviesHandler) Create(c *gin.Context) {
 	var request createMovieRequest
 
-	err := c.BindJSON(&request)
+	err := c.Bind(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.NewApiError("Could not bind json"))
 		return
@@ -147,21 +156,27 @@ func (h *MoviesHandler) Create(c *gin.Context) {
 		return
 	}
 
-	roles, err := h.rolesRepo.FindAllByIds(c, request.RoleIds)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.NewApiError(err.Error()))
+	if request.PosterUrl == nil {
+		c.JSON(http.StatusBadRequest, "Poster file is required")
 		return
 	}
+
+	filename, err := h.saveMoviesPoster(c, request.PosterUrl)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
+		return
+	}
+
 	movie := models.Movie{
 		Title:       request.Title,
 		Description: request.Description,
 		ReleaseYear: request.ReleaseYear,
 		Director:    request.Director,
 		TrailerUrl:  request.TrailerUrl,
+		PosterUrl:   filename,
 		Genres:      genres,
 		Category:    categories,
 		Ages:        ages,
-		Roles:       roles,
 	}
 
 	id, err := h.moviesRepo.Create(c, movie)
@@ -176,6 +191,14 @@ func (h *MoviesHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id": id,
 	})
+}
+
+func (h *MoviesHandler) saveMoviesPoster(c *gin.Context, poster *multipart.FileHeader) (string, error) {
+	filename := fmt.Sprintf("%s%s", uuid.NewString(), filepath.Ext(poster.Filename))
+	filepath := fmt.Sprintf("images/%s", filename)
+	err := c.SaveUploadedFile(poster, filepath)
+
+	return filename, err
 }
 
 // Update godoc
@@ -210,7 +233,7 @@ func (h *MoviesHandler) Update(c *gin.Context) {
 	}
 
 	var request updateMovieRequest
-	err = c.BindJSON(&request)
+	err = c.Bind(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.NewApiError("Could not bind json"))
 		return
@@ -233,18 +256,29 @@ func (h *MoviesHandler) Update(c *gin.Context) {
 		return
 	}
 
+	filename, err := h.saveMoviesPoster(c, request.PosterUrl)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
+		return
+	}
+
 	movie := models.Movie{
 		Title:       request.Title,
 		Description: request.Description,
 		ReleaseYear: request.ReleaseYear,
 		Director:    request.Director,
 		TrailerUrl:  request.TrailerUrl,
+		PosterUrl:   filename,
 		Genres:      genres,
 		Category:    categories,
 		Ages:        ages,
 	}
 
-	h.moviesRepo.Update(c, id, movie)
+	err = h.moviesRepo.Update(c, id, movie)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewApiError("Failed to update movie"))
+		return
+	}
 
 	c.Status(http.StatusOK)
 }
@@ -275,5 +309,5 @@ func (h *MoviesHandler) Delete(c *gin.Context) {
 
 	h.moviesRepo.Delete(c, id)
 
-	c.Status(http.StatusOK)
+	c.Status(http.StatusNoContent)
 }

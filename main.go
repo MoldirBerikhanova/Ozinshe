@@ -67,26 +67,44 @@ func main() {
 	}
 
 	moviesRepository := repositories.NewMoviesRepository(conn)
+	moviesAdminRepository := repositories.NewMoviesAdminRepository(conn)
 	genresRepostiroy := repositories.NewGenresRepository(conn)
 	categoryRepository := repositories.NewCategoryRepository(conn)
 	ageRepository := repositories.NewAgeRepository(conn)
+	usersRepository := repositories.NewUsersRepository(conn)
+	allseriesRepository := repositories.NewAllSeriesRepository(conn)
+	selectedRepository := repositories.NewSelectedlistRepository(conn)
 	rolesRepository := repositories.NewRolesRepository(conn)
+
 	moviesHandler := handlers.NewMoviesHandler(
 		moviesRepository,
 		genresRepostiroy,
 		categoryRepository,
 		ageRepository,
-		rolesRepository,
 	)
-	usersRepository := repositories.NewUsersRepository(conn)
 
+	movieAdminResponseHandler := handlers.NewMovieAdminResponseHandler(
+		moviesAdminRepository,
+		genresRepostiroy,
+		categoryRepository,
+		ageRepository,
+		allseriesRepository,
+	)
+
+	selectedHandlers := handlers.NewSelectedlistHandler(moviesRepository, selectedRepository)
+	rolesHandlers := handlers.NewRolesHandlers(rolesRepository, usersRepository, moviesAdminRepository,
+		genresRepostiroy,
+		categoryRepository,
+		ageRepository,
+		allseriesRepository)
 	genresHandler := handlers.NewGenreHanlers(genresRepostiroy)
-	//imageHandlers := handlers.NewImageHandlers()
+	imageHandlers := handlers.NewImageHandlers()
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepository)
 	agesHandlers := handlers.NewAgeHandler(ageRepository)
 	usersHandlers := handlers.NewUsersHandlers(usersRepository)
 	authHandlers := handlers.NewAuthHandlers(usersRepository)
-	rolesHandlers := handlers.NewRolesHAndlers(rolesRepository)
+	allseriesHandlers := handlers.NewAllSeriesHandlers(allseriesRepository)
+
 	authorized := r.Group("")
 	authorized.Use(middlewares.AuthMiddleware)
 
@@ -95,6 +113,13 @@ func main() {
 	authorized.POST("/movies", moviesHandler.Create)
 	authorized.PUT("/movies/:id", moviesHandler.Update)
 	authorized.DELETE("/movies/:id", moviesHandler.Delete)
+
+	authorized.GET("/moviesAdmin/:id", movieAdminResponseHandler.FindById) //http://localhost:8081/movies/:id
+	authorized.GET("/moviesAdmin", movieAdminResponseHandler.FindAll)      //http://localhost:8081/movies/
+	authorized.POST("/moviesAdmin", movieAdminResponseHandler.Create)
+	authorized.PUT("/moviesAdmin/:id", movieAdminResponseHandler.Update)
+	authorized.DELETE("/moviesAdmin/:id", movieAdminResponseHandler.Delete)
+	authorized.PATCH("/moviesAdmin/:movieId/setWatched", movieAdminResponseHandler.HandleSetWatched)
 
 	authorized.GET("/genres/:id", genresHandler.FindById) //http://localhost:8081/genres/:id
 	authorized.GET("/genres", genresHandler.FindAll)      //http://localhost:8081/genres/
@@ -114,23 +139,43 @@ func main() {
 	authorized.PUT("/ages/:id", agesHandlers.Update)
 	authorized.DELETE("/ages/:id", agesHandlers.Delete)
 
-	authorized.GET("/users", usersHandlers.FindAll)
-	authorized.GET("/users/:id", usersHandlers.FindById)
+	authorized.GET("/users", usersHandlers.FindAll)      //http://localhost:8081/users/
+	authorized.GET("/users/:id", usersHandlers.FindById) //http://localhost:8081/users/:id
+	authorized.PATCH("/users/:id/changePassword", usersHandlers.ChangePassword)
 	authorized.POST("/users", usersHandlers.Create)
 	authorized.PUT("/users/:id", usersHandlers.Update)
-	authorized.PATCH("/users/:id/changePassword", usersHandlers.ChangePassword)
 	authorized.DELETE("/users/:id", usersHandlers.Delete)
 
-	authorized.POST("/roles", rolesHandlers.Create) //http://localhost:8081/roles/
-	authorized.GET("/roles", rolesHandlers.FindAll) //http://localhost:8081/roles/:id
-	authorized.DELETE("/roles/:id", rolesHandlers.Delete)
+	authorized.POST("/allseries", allseriesHandlers.Create)
+	authorized.GET("/allseries/:id", allseriesHandlers.FindById)
+	authorized.GET("/allseries", allseriesHandlers.FindAll)    //http://localhost:8081/allseries/
+	authorized.PUT("/allseries/:id", allseriesHandlers.Update) //http://localhost:8081/allseries/:id
+	authorized.DELETE("/allseries/:id", allseriesHandlers.Delete)
+
+	authorized.GET("/roles", rolesHandlers.FindAll) //
 	authorized.GET("/roles/:id", rolesHandlers.FindById)
+	authorized.POST("/roles", rolesHandlers.Create)
 	authorized.PUT("/roles/:id", rolesHandlers.Update)
+	authorized.PATCH("/roles/:id/changePassword", rolesHandlers.ChangePassword)
+	authorized.DELETE("/roles/:id", rolesHandlers.Delete)
+
+	authorized.GET("/rolesuser", rolesHandlers.FindAllUsers)
+	authorized.DELETE("/rolesuser/:id", rolesHandlers.DeleteUser)
+	authorized.PUT("/rolesuser/:id", rolesHandlers.UpdateUser)
+
+	authorized.GET("rolesmovie", rolesHandlers.FindAllUsers)
+	authorized.DELETE("/rolesmovie/:id", rolesHandlers.DeleteUser)
+	authorized.PUT("/rolesmovie/:id", rolesHandlers.UpdateUser)
+
+
+	authorized.POST("/selected/:movieId", selectedHandlers.HandleAddMovie)
+	authorized.GET("/selected", selectedHandlers.HandleGetMoviesAndSeries) //http://localhost:8081/moviesandseries/
 
 	authorized.POST("/auth/signOut", authHandlers.SignOut)     //http://localhost:8081/auth/signOut
 	authorized.GET("/auth/userInfo", authHandlers.GetUserInfo) //http://localhost:8081/auth/userInfo
 
 	unauthorized := r.Group("")
+	unauthorized.GET("/images/:imageId", imageHandlers.HandleGetImageById)
 	unauthorized.POST("/auth/signIn", authHandlers.SignIn) //http://localhost:8081/auth/signIn
 
 	docs.SwaggerInfo.BasePath = "/"

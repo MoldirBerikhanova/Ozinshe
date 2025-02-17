@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"fmt"
+	"goozinshe/logger"
 	"goozinshe/models"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,7 +18,7 @@ func NewCategoryRepository(conn *pgxpool.Pool) *CategoryRepository {
 }
 
 func (r *CategoryRepository) FindAllByIds(c context.Context, ids []int) ([]models.Category, error) {
-	rows, err := r.db.Query(c, "select id, title from categories where id = any($1)", ids)
+	rows, err := r.db.Query(c, "select id, title, poster_url from categories where id = any($1)", ids)
 	defer rows.Close()
 	if err != nil {
 		return nil, err
@@ -26,7 +28,7 @@ func (r *CategoryRepository) FindAllByIds(c context.Context, ids []int) ([]model
 
 	for rows.Next() {
 		var category models.Category
-		err = rows.Scan(&category.Id, &category.Title)
+		err = rows.Scan(&category.Id, &category.Title, &category.PosterUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -39,20 +41,22 @@ func (r *CategoryRepository) FindAllByIds(c context.Context, ids []int) ([]model
 
 func (r *CategoryRepository) Create(c context.Context, category models.Category) (int, error) {
 	var id int
+	l := logger.GetLogger()
 	// tx, err := r.db.Begin(c)
-
-	row := r.db.QueryRow(c, "insert into categories (title) values($1)", category.Title)
+	l.Info(fmt.Sprintf("добавить категорию %s?", category.Title))
+	row := r.db.QueryRow(c, "insert into categories (title, poster_url) values ($1, $2) returning id", category.Title, category.PosterUrl)
 	err := row.Scan(&id)
 	if err != nil {
 		return 0, nil
 	}
+
 	return id, nil
 }
 
 func (r *CategoryRepository) FindById(c context.Context, id int) (models.Category, error) {
 	var category models.Category
-	row := r.db.QueryRow(c, "select id, title from categories where id = $1", id)
-	err := row.Scan(&category.Id, &category.Title)
+	row := r.db.QueryRow(c, "select id, title, poster_url from categories where id = $1", id)
+	err := row.Scan(&category.Id, &category.Title, &category.PosterUrl)
 	if err != nil {
 		return models.Category{}, err
 	}
@@ -60,7 +64,7 @@ func (r *CategoryRepository) FindById(c context.Context, id int) (models.Categor
 }
 
 func (r *CategoryRepository) FindAll(c context.Context) ([]models.Category, error) {
-	rows, err := r.db.Query(c, "select id, title from categories")
+	rows, err := r.db.Query(c, "select id, title, poster_url from categories")
 	defer rows.Close()
 	if err != nil {
 		return nil, err
@@ -69,7 +73,7 @@ func (r *CategoryRepository) FindAll(c context.Context) ([]models.Category, erro
 	categories := make([]models.Category, 0)
 	for rows.Next() {
 		var category models.Category
-		err := rows.Scan(&category.Id, &category.Title)
+		err := rows.Scan(&category.Id, &category.Title, &category.PosterUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -80,8 +84,8 @@ func (r *CategoryRepository) FindAll(c context.Context) ([]models.Category, erro
 	return categories, nil
 }
 
-func (r *CategoryRepository) Update(c context.Context, id int, category models.Category) error {
-	_, err := r.db.Exec(c, "update categories set title = $1 where id = $2", category.Title, category.Id)
+func (r *CategoryRepository) Update(c context.Context, id int, updatedcategory models.Category) error {
+	_, err := r.db.Exec(c, "update categories set title = $1, poster_url = $2 where id = $3", updatedcategory.Title, updatedcategory.PosterUrl, id)
 	if err != nil {
 		return err
 	}
@@ -90,10 +94,22 @@ func (r *CategoryRepository) Update(c context.Context, id int, category models.C
 }
 
 func (r *CategoryRepository) Delete(c context.Context, id int) error {
-	_, err := r.db.Exec(c, "delete from categories where id = $1", id)
+	l := logger.GetLogger()
+
+	var categoryTitle string
+	row := r.db.QueryRow(c, "select title from categories where id = $1", id)
+	err := row.Scan(&categoryTitle)
 	if err != nil {
 		return err
 	}
+
+	l.Warn(fmt.Sprintf("Вы действительно хотите удалить %s категорию?", categoryTitle))
+	_, err = r.db.Exec(c, "delete from categories where id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	l.Info(fmt.Sprintf("категория %s удалена", categoryTitle))
 
 	return nil
 }

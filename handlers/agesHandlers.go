@@ -1,16 +1,30 @@
 package handlers
 
 import (
+	"fmt"
 	"goozinshe/models"
 	"goozinshe/repositories"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
-	
+
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AgeHandler struct {
 	ageRepo *repositories.AgeRepository
+}
+
+type createAgeRequest struct {
+	Age    string                `form:"age"`
+	Poster *multipart.FileHeader `form:"poster"`
+}
+
+type updateAgeRequest struct {
+	Age    string                `form:"age"`
+	Poster *multipart.FileHeader `form:"poster"`
 }
 
 func NewAgeHandler(ageRepo *repositories.AgeRepository) *AgeHandler {
@@ -30,11 +44,27 @@ func NewAgeHandler(ageRepo *repositories.AgeRepository) *AgeHandler {
 // @Failure   	 500  {object} models.ApiError
 // @Router       /ages [post]
 func (a *AgeHandler) HandleAddAge(c *gin.Context) {
-	var age models.Age
-	err := c.BindJSON(&age)
+	var request createAgeRequest
+	err := c.Bind(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.NewApiError("invalid age"))
 		return
+	}
+
+	if request.Poster == nil {
+		c.JSON(http.StatusBadRequest, "Poster file is required")
+		return
+	}
+
+	filename, err := a.saveAgePoster(c, request.Poster)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
+		return
+	}
+
+	age := models.Age{
+		Age:       request.Age,
+		PosterUrl: filename,
 	}
 
 	id, err := a.ageRepo.Create(c, age)
@@ -46,6 +76,14 @@ func (a *AgeHandler) HandleAddAge(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id": id,
 	})
+}
+
+func (a *AgeHandler) saveAgePoster(c *gin.Context, poster *multipart.FileHeader) (string, error) {
+	filename := fmt.Sprintf("%s%s", uuid.NewString(), filepath.Ext(poster.Filename))
+	filepath := fmt.Sprintf("images/%s", filename)
+	err := c.SaveUploadedFile(poster, filepath)
+
+	return filename, err
 }
 
 // FindAll godoc
@@ -114,18 +152,25 @@ func (a *AgeHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var updatedAge models.Age
-	err = c.BindJSON(&updatedAge)
+	var request updateAgeRequest
+	err = c.BindJSON(&request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 
-	err = a.ageRepo.Update(c, id, updatedAge)
+	filename, err := a.saveAgePoster(c, request.Poster)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.NewApiError(err.Error()))
+		c.JSON(http.StatusInternalServerError, models.NewApiError(err.Error()))
 		return
 	}
+
+	age := models.Age{
+		Age:       request.Age,
+		PosterUrl: filename,
+	}
+
+	a.ageRepo.Update(c, id, age)
 
 	c.Status(http.StatusOK)
 }
@@ -143,7 +188,7 @@ func (a *AgeHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.NewApiError("Invalid category Id"))
+		c.JSON(http.StatusBadRequest, models.NewApiError("Invalid age Id"))
 		return
 	}
 
